@@ -17,7 +17,13 @@ The code in this repository was originally a part of the main [Garden repo](http
 First clone the repo into your `$GOPATH`:
 
 ```sh
-git clone https://github.com/garden-io/experimental-go-cli.git $GOPATH/github.com/garden-io/`
+git clone https://github.com/garden-io/experimental-go-cli.git $GOPATH/github.com/garden-io/
+```
+
+Next, install dependencies with:
+
+```sh
+dep ensure
 ```
 
 Then start the Mutagen daemon with:
@@ -60,15 +66,15 @@ garden_go deploy
 
 ## How it works
 
-The Go CLI is just a thin wrapper around the containerized version of the [garden-service package](https://github.com/garden-io/garden/tree/master/garden-service), that uses [Mutagen](https://mutagen.io/) for file syncing. The `garden-service`Docker image is available on [Dockerhub](ihttps://hub.docker.com/r/gardenengine/garden-service) and updated on every merge to master.
+The Go CLI is just a thin wrapper around the containerized version of the [garden-service package](https://github.com/garden-io/garden/tree/master/garden-service), that uses [Mutagen](https://mutagen.io/) for file syncing. The `garden-service` Docker image is available on [Dockerhub](ihttps://hub.docker.com/r/gardenengine/garden-service) and updated on every merge to master.
 
-For the first run, the CLI:
+When executing for the first time for a given project, the CLI will:
 
-1. Creates a named volume for the project.
-2. Creates and starts a `garden-sync` container that mounts the named volume.
-3. Starts a sync session between the host and the `garden-sync` container that syncs the contents of the local project directory into the named project volume and watches for changes.
-4. Starts a `garden-service` container that mounts the named volume.
-5. Runs the command inside the `garden-service` container and streams the output.
+1. Create a named volume for the project.
+2. Create and start a `garden-sync` container that mounts the named volume.
+3. Start a sync session between the host and the `garden-sync` container that syncs the contents of the local project directory into the named project volume and watches for changes.
+4. Start a `garden-service` container that mounts the named volume.
+5. Run the command inside the `garden-service` container and stream the output.
 
  The containers, volume and sync session are persistent, and unique to a given project. So, for an existing project, where the steps above have already been performed, the CLI simply `execs` into the `garden-service` container and runs the command.
 
