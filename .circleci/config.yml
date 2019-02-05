@@ -1,0 +1,388 @@
+# Javascript Node CircleCI 2.1 configuration file
+version: 2.1
+
+# Shared config to use between jobs
+# These can be used to inject shared variables
+# see https://blog.daemonl.com/2016/02/yaml.html
+.references:
+  # Go configuration for all our jobs
+  go-config: &go-config
+    docker:
+    - image: circleci/golang:1.10
+    working_directory: /go/src/github.com/garden-io/garden
+
+  # Configuration for our node jobs
+  node-config: &node-config
+    docker:
+      - image: circleci/node:10
+
+  # Attach's the current saved workspace
+  attach-workspace: &attach-workspace
+    attach_workspace:
+          at: ./
+
+  # Only run jobs on master
+  only-master: &only-master
+    filters:
+      branches:
+        only: master
+      tags:
+        ignore: /.*/
+
+  # Only run on versioned tags
+  only-tags: &only-tags
+    filters:
+      branches:
+        ignore: /.*/
+      tags:
+        # Technically could be a better regex but for now just starting with v feels good enough
+        only: /v.*/
+
+# Reuseable commands to execute in jobs
+# see https://circleci.com/docs/2.0/configuration-reference/#commands-requires-version21
+# and example https://github.com/mapbox/mapbox-gl-native/blob/master/circle.yml
+commands:
+  npm_install:
+    description: |
+      Installs npm packages for root, garden-service, and dashboard and loads and saves the caches as appropriate
+    steps:
+      - restore_cache:
+          keys:
+          - root-{{ checksum "package-lock.json" }}
+      - restore_cache:
+          keys:
+          - garden-service-{{ checksum "garden-service/package-lock.json" }}
+      - restore_cache:
+          keys:
+          - dashboard-{{ checksum "dashboard/package-lock.json" }}
+      # only install if node_modules wasn't cached
+      - run: if [ ! -d "node_modules" ]; then npm ci; fi
+      - save_cache:
+          paths: [node_modules]
+          key: root-{{ checksum "package-lock.json" }}
+
+      - run: if [ ! -d "garden-service/node_modules" ]; then cd garden-service && npm ci; fi
+      - save_cache:
+          paths: [garden-service/node_modules]
+          key: garden-service-{{ checksum "garden-service/package-lock.json" }}
+
+      - run: if [ ! -d "dashboard/node_modules" ]; then cd dashboard && npm ci; fi
+      - save_cache:
+          paths: [dashboard/node_modules]
+          key: dashboard-{{ checksum "dashboard/package-lock.json" }}
+
+  go_install_deps:
+    description: |
+      Installs our go dependancies and deals with caching and loading the cache
+    steps:
+      - restore_cache:
+          keys:
+            - pkg-cache-{{ checksum "Gopkg.lock" }}
+      - run: go get -u github.com/jstemmer/go-junit-report
+      - run:
+          name: Install dep
+          command: |
+            if [ ! -d /go/src/github.com/garden-io/garden/vendor ]; then
+                # This needs to match the version installed locally
+                curl -L -s https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64 -o /go/bin/dep
+                chmod +x /go/bin/dep
+                /go/bin/dep ensure
+            fi
+      - save_cache:
+          key: pkg-cache-{{ checksum "Gopkg.lock" }}
+          paths:
+            - "/go/src/github.com/garden-io/garden/vendor"
+
+  docker_build:
+    description: Builds and Tags a Docker Image
+    parameters:
+      context:
+        description: Directory to build in
+        type: string
+        default: .
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Build Docker Image
+          command: |
+            # Just build it with the approprate tag
+            docker build -t << parameters.context >> << parameters.context >>
+
+  # Depends on attach_workspace
+  include_dashboard:
+    description: Copies the dashboard build directory into the garden service static directory
+    steps:
+      - run:
+          name: Copy dashboard build to static dir
+          command: |
+            mkdir ./garden-service/static/dashboard
+            cp -r ./dashboard/build/* ./garden-service/static/dashboard/
+
+  docker_release:
+    description: |
+      Builds and publishes a docker image to the public registry.
+      It automatically switches between git tag and `:master`
+    parameters:
+      context:
+        description: Directory to build in
+        type: string
+        default: .
+      dockerfile:
+        description: Name of dockerfile to use. Defaults to Dockerfile in working directory.
+        type: string
+        default: Dockerfile
+      image:
+        description: Name of image to create. Defaults to a combination of $DOCKER_ORG/$CIRCLE_PROJECT_REPONAME.
+        type: string
+        default: $DOCKER_ORG/$CIRCLE_PROJECT_REPONAME
+      registry:
+        description: Name of registry to use. Defaults to docker.io.
+        type: string
+        default: docker.io
+      release:
+        description: to release to public registry or not
+        type: boolean
+        default: false
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - deploy:
+          name: Release docker image
+          command: |
+            # These values are inject from context docker
+            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+            # Switches between git tag and master for releases
+            TAG=${CIRCLE_TAG:-master}
+            docker build -t << parameters.context >> << parameters.context >>
+            docker tag << parameters.context >>  << parameters.registry >>/<< parameters.image >>:$TAG
+            docker push << parameters.registry >>/<< parameters.image >>:$TAG
+
+#
+# Jobs section
+#
+jobs:
+  test-cli:
+    <<: *go-config
+    steps:
+      - checkout
+      - go_install_deps
+      # NOTE: This always fails in CI with the error:
+      #
+      # # github.com/garden-io/garden/vendor/github.com/havoc-io/mutagen/pkg/session
+      #   ../vendor/github.com/havoc-io/mutagen/pkg/session/controller.go:113:25: undefined: mutagen.VersionMajor
+      #   ../vendor/github.com/havoc-io/mutagen/pkg/session/controller.go:114:25: undefined: mutagen.VersionMinor
+      #   ../vendor/github.com/havoc-io/mutagen/pkg/session/controller.go:115:25: undefined: mutagen.VersionPatch
+      #
+      # However, it does work locally. Moreover, it does work locally inside a circleci/golang:1.10 Docker container.
+      # Not sure why it keeps failing in CI.
+      #
+      # Therefore we're removing this step for now so that we can get this merged. Additionally, the Go CLI
+      # is being deprecated and moved into a separate repo once this has been merged.
+      #
+      # - run:
+      #     name: Unit Tests
+      #     command: |
+      #       cd garden-cli
+      #       go test -v 2>&1 | go-junit-report > /tmp/report.xml
+      # - store_artifacts:
+      #     path: /tmp/report.xml
+      # - store_test_results:
+      #     path: /tmp/
+  build-cli:
+    <<: *go-config
+    steps:
+      - checkout
+      - go_install_deps
+      - run: go get -u github.com/goreleaser/goreleaser
+      - run:
+          name: Build Go cli
+          command: |
+            cd garden-cli
+            # Set to snapshot builds unless we are on a git tag
+            FLAGS="--snapshot"
+            if [[ -n "$CIRCLE_TAG" ]]; then
+              FLAGS=""
+            fi
+            # Build them all
+            goreleaser $FLAGS --rm-dist
+      - store_artifacts:
+          path: garden-cli/dist/
+          destination: /downloads
+  build-sync-docker:
+    <<: *node-config
+    steps:
+      - checkout
+      - docker_build:
+          context: garden-sync
+  release-sync:
+    <<: *node-config
+    steps:
+      - checkout
+      - docker_release:
+          context: garden-sync
+          image: $DOCKER_ORG/garden-sync
+  build-service-docker:
+    <<: *node-config
+    steps:
+      - checkout
+      # This is to copy the pre-build build output from test-service (this should be a different step)
+      - *attach-workspace
+      - include_dashboard
+      - docker_build:
+          context: garden-service
+  release-service-docker:
+    <<: *node-config
+    steps:
+      - checkout
+      # This is to copy the pre-build build output from test-service (this should be a different step)
+      - *attach-workspace
+      - docker_release:
+          context: garden-service
+          image: $DOCKER_ORG/garden-service
+  build-service:
+    <<: *node-config
+    steps:
+      - checkout
+      - run: sudo apt-get update && sudo apt-get install rsync
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - npm_install
+      - run:
+          name: build
+          command: npm run build-service-ci
+      # Save the built output to be used for the docker image and for the release steps
+      - persist_to_workspace:
+          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
+          # taken to be the root directory of the workspace.
+          root: ./
+          # Must be relative path from root
+          paths:
+            # Save the built output for future
+            - garden-service/build/
+            - garden-service/static/
+  test-service:
+    <<: *node-config
+    steps:
+      - checkout
+      - run: sudo apt-get update && sudo apt-get install rsync
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - npm_install
+      - *attach-workspace
+      - run:
+          name: Make sure generated docs are up-to-date
+          command: npm run check-docs
+      - run:
+          name: lint
+          command: npm run lint
+      - run:
+          name: test
+          command: |
+            npm run test-service-ci
+          environment:
+            CHOKIDAR_USEPOLLING: "1"
+  build-dashboard:
+    <<: *node-config
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - npm_install
+      - run:
+          name: Build dashboard
+          command: npm run build-dashboard-ci
+      # Save the built output to be used for the docker image and for the release steps
+      - persist_to_workspace:
+          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
+          # taken to be the root directory of the workspace.
+          root: ./
+          # Must be relative path from root
+          paths:
+            # Save the built output for future
+            - dashboard/build/
+  release-service-pkg:
+    <<: *node-config
+    steps:
+      - checkout
+      - npm_install
+      - run: sudo apt-get update && sudo apt-get -y install rsync
+      - *attach-workspace
+      - include_dashboard
+      - run: sudo npm install -g pkg
+      - run:
+          command: ./garden-service/bin/build-pkg.sh
+      - store_artifacts:
+          path: garden-service/dist/
+          destination: /downloads
+
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - build-service
+      - test-cli:
+          requires:
+            - build-service
+      - test-service
+      - build-dashboard
+      - build-sync-docker
+      - build-service-docker:
+          requires:
+            - build-service
+            - build-dashboard
+  master:
+    jobs:
+      # Duplicated here so we can reference steps that depends on it
+      - build-service:
+          <<: *only-master
+      - test-service:
+          <<: *only-master
+          requires:
+            - build-service
+      - build-dashboard:
+          <<: *only-master
+      - release-sync:
+          <<: *only-master
+          context: docker
+      - release-service-docker:
+          <<: *only-master
+          context: docker
+          requires:
+            - build-service
+            - build-dashboard
+      - release-service-pkg:
+          <<: *only-master
+          requires:
+            - build-service
+            - build-dashboard
+      - build-cli:
+          <<: *only-master
+
+  tags:
+    jobs:
+      # Duplicated here so we can reference steps that depends on it
+      - build-service:
+          <<: *only-tags
+      - test-service:
+          <<: *only-tags
+          requires:
+          - build-service
+      - build-dashboard:
+          <<: *only-tags
+      - release-sync:
+          <<: *only-tags
+          context: docker
+      - release-service-docker:
+          <<: *only-tags
+          context: docker
+          requires:
+            - build-service
+            - build-dashboard
+      - build-cli:
+          <<: *only-tags
+      - release-service-pkg:
+          <<: *only-tags
+          requires:
+            - build-service
+            - build-dashboard
