@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/garden-io/garden/garden-cli/util"
+	"github.com/garden-io/experimental-go-cli/cli/util"
 	"github.com/havoc-io/mutagen/pkg/daemon"
 	sessionsvcpkg "github.com/havoc-io/mutagen/pkg/service/session"
 	sessionpkg "github.com/havoc-io/mutagen/pkg/session"

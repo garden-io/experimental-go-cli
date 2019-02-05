@@ -6,9 +6,9 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
-	"github.com/garden-io/garden/garden-cli/dockerutil"
-	"github.com/garden-io/garden/garden-cli/syncutil"
-	"github.com/garden-io/garden/garden-cli/util"
+	"github.com/garden-io/experimental-go-cli/cli/dockerutil"
+	"github.com/garden-io/experimental-go-cli/cli/syncutil"
+	"github.com/garden-io/experimental-go-cli/cli/util"
 	"github.com/pkg/errors"
 )
 

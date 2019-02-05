@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
-	"github.com/garden-io/garden/garden-cli/util"
+	"github.com/garden-io/experimental-go-cli/cli/util"
 	"github.com/pkg/errors"
 )
 

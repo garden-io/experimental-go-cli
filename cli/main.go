@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/garden-io/garden/garden-cli/dockerutil"
-	"github.com/garden-io/garden/garden-cli/util"
+	"github.com/garden-io/experimental-go-cli/cli/dockerutil"
+	"github.com/garden-io/experimental-go-cli/cli/util"
 	"github.com/pkg/errors"
 )
 

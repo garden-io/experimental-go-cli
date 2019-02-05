@@ -8,7 +8,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/garden-io/garden/garden-cli/util"
+	"github.com/garden-io/experimental-go-cli/cli/util"
 	"gopkg.in/yaml.v2"
 )
 
