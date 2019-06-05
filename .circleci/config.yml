@@ -8,7 +8,7 @@ version: 2.1
   # Go configuration for all our jobs
   go-config: &go-config
     docker:
-    - image: circleci/golang:1.10
+      - image: circleci/golang:1.10
     working_directory: /go/src/github.com/garden-io/experimental-go-cli
 
   # Only run jobs on master
@@ -54,61 +54,6 @@ commands:
           paths:
             - "/go/src/github.com/garden-io/experimental-go-cli/vendor"
 
-  docker_build:
-    description: Builds and Tags a Docker Image
-    parameters:
-      context:
-        description: Directory to build in
-        type: string
-        default: .
-    steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - run:
-          name: Build Docker Image
-          command: |
-            # Just build it with the approprate tag
-            docker build -t << parameters.context >> << parameters.context >>
-
-  docker_release:
-    description: |
-      Builds and publishes a docker image to the public registry.
-      It automatically switches between git tag and `:master`
-    parameters:
-      context:
-        description: Directory to build in
-        type: string
-        default: .
-      dockerfile:
-        description: Name of dockerfile to use. Defaults to Dockerfile in working directory.
-        type: string
-        default: Dockerfile
-      image:
-        description: Name of image to create. Defaults to a combination of $DOCKER_ORG/$CIRCLE_PROJECT_REPONAME.
-        type: string
-        default: $DOCKER_ORG/$CIRCLE_PROJECT_REPONAME
-      registry:
-        description: Name of registry to use. Defaults to docker.io.
-        type: string
-        default: docker.io
-      release:
-        description: to release to public registry or not
-        type: boolean
-        default: false
-    steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - deploy:
-          name: Release docker image
-          command: |
-            # These values are inject from context docker
-            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-            # Switches between git tag and master for releases
-            TAG=${CIRCLE_TAG:-master}
-            docker build -t << parameters.context >> << parameters.context >>
-            docker tag << parameters.context >>  << parameters.registry >>/<< parameters.image >>:$TAG
-            docker push << parameters.registry >>/<< parameters.image >>:$TAG
-
 #
 # Jobs section
 #
@@ -147,21 +92,8 @@ jobs:
       - store_artifacts:
           path: garden-cli/dist/
           destination: /downloads
-  build-sync-docker:
-    <<: *go-config
-    steps:
-      - checkout
-      - docker_build:
-          context: garden-sync
-  release-sync:
-    <<: *go-config
-    steps:
-      - checkout
-      - docker_release:
-          context: garden-sync
-          image: $DOCKER_ORG/garden-sync
 
-# NOTE: The build-cli and test-cli steps always fails in CI with the error:
+# NOTE: The build-cli and test-cli steps always fail in CI with the error:
 #
 # # github.com/garden-io/experimental-go-cli/vendor/github.com/havoc-io/mutagen/pkg/session
 #   ../vendor/github.com/havoc-io/mutagen/pkg/session/controller.go:113:25: undefined: mutagen.VersionMajor
@@ -172,27 +104,20 @@ jobs:
 # Not sure why it keeps failing in CI.
 #
 # Therefore we've commented out these steps since this is just an experimental package and not supported at the moment.
-workflows:
-  version: 2
-  commit:
-    jobs:
-      # - test-cli
-      - build-sync-docker
-
-  master:
-    jobs:
-      # Duplicated here so we can reference steps that depends on it
-      - release-sync:
-          <<: *only-master
-          context: docker
-      # - build-cli:
-      #     <<: *only-master
-
-  tags:
-    jobs:
-      # Duplicated here so we can reference steps that depends on it
-      - release-sync:
-          <<: *only-tags
-          context: docker
-      # - build-cli:
-      #     <<: *only-tags
+# workflows:
+#   version: 2
+#   commit:
+#     jobs:
+#       - test-cli
+#
+#   master:
+#     jobs:
+#       # Duplicated here so we can reference steps that depends on it
+#       - build-cli:
+#           <<: *only-master
+#
+#   tags:
+#     jobs:
+#       # Duplicated here so we can reference steps that depends on it
+#       - build-cli:
+#           <<: *only-tags

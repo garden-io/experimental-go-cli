@@ -1,7 +1,7 @@
 package main
 
 // SyncImage is which docker image to use for syncing
-const SyncImage = "gardenengine/garden-sync:latest"
+const SyncImage = "alpine:3.8"
 
 // ServiceImage is which docker image to use for garden service
 const ServiceImage = "gardenengine/garden-service:latest"
