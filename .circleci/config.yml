@@ -11,11 +11,11 @@ version: 2.1
     - image: circleci/golang:1.10
     working_directory: /go/src/github.com/garden-io/experimental-go-cli
 
-  # Only run jobs on master
-  only-master: &only-master
+  # Only run jobs on main
+  only-main: &only-main
     filters:
       branches:
-        only: master
+        only: main
       tags:
         ignore: /.*/
 
@@ -73,7 +73,7 @@ commands:
   docker_release:
     description: |
       Builds and publishes a docker image to the public registry.
-      It automatically switches between git tag and `:master`
+      It automatically switches between git tag and `:main`
     parameters:
       context:
         description: Directory to build in
@@ -103,8 +103,8 @@ commands:
           command: |
             # These values are inject from context docker
             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-            # Switches between git tag and master for releases
-            TAG=${CIRCLE_TAG:-master}
+            # Switches between git tag and main for releases
+            TAG=${CIRCLE_TAG:-main}
             docker build -t << parameters.context >> << parameters.context >>
             docker tag << parameters.context >>  << parameters.registry >>/<< parameters.image >>:$TAG
             docker push << parameters.registry >>/<< parameters.image >>:$TAG
@@ -179,14 +179,14 @@ workflows:
       # - test-cli
       - build-sync-docker
 
-  master:
+  main:
     jobs:
       # Duplicated here so we can reference steps that depends on it
       - release-sync:
-          <<: *only-master
+          <<: *only-main
           context: docker
       # - build-cli:
-      #     <<: *only-master
+      #     <<: *only-main
 
   tags:
     jobs:
