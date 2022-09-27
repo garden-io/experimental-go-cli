@@ -56,11 +56,11 @@ Now, you can use `garden_go` just like you would normally use Garden. For exampl
 garden_go deploy
 ```
 
-**Note**: It's currently not recommended to use the Go CLI inside the [examples](https://github.com/garden-io/garden/tree/master/examples) directory included with the main Garden source. This is a known limitation, [see below](#ssue-when-running-in-examples-directory).
+**Note**: It's currently not recommended to use the Go CLI inside the [examples](https://github.com/garden-io/garden/tree/main/examples) directory included with the main Garden source. This is a known limitation, [see below](#ssue-when-running-in-examples-directory).
 
 ## How it works
 
-The Go CLI is just a thin wrapper around the containerized version of the [garden-service package](https://github.com/garden-io/garden/tree/master/garden-service), that uses [Mutagen](https://mutagen.io/) for file syncing. The `garden-service`Docker image is available on [Dockerhub](ihttps://hub.docker.com/r/gardenengine/garden-service) and updated on every merge to master.
+The Go CLI is just a thin wrapper around the containerized version of the [garden-service package](https://github.com/garden-io/garden/tree/main/garden-service), that uses [Mutagen](https://mutagen.io/) for file syncing. The `garden-service`Docker image is available on [Dockerhub](ihttps://hub.docker.com/r/gardenengine/garden-service) and updated on every merge to main.
 
 For the first run, the CLI:
 
@@ -104,7 +104,7 @@ To access the Docker volume when using Docker for Mac, checkout this [SO answer]
 
 ## Issue when running in examples directory
 
-It's currently not recommend to use the Go CLI inside the [examples](https://github.com/garden-io/garden/tree/master/examples) directory of the main Garden source. This is because with the current implementation, the Go CLI assumes that the root of the project is the git root, i.e. the directory that contains the `.git` directory.
+It's currently not recommend to use the Go CLI inside the [examples](https://github.com/garden-io/garden/tree/main/examples) directory of the main Garden source. This is because with the current implementation, the Go CLI assumes that the root of the project is the git root, i.e. the directory that contains the `.git` directory.
 
 So, if you've cloned the main Garden repo, the git root contains the entire codebase. The Go CLI would therefore attempt to sync and watch the entire codebase instead of just a particular example project.
 
